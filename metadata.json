@@ -1,0 +1,7 @@
+{
+  "name": "Traffix - AI Traffic Management System",
+  "description": "A deep learning-powered traffic monitoring dashboard that tracks vehicle flow, detects number plates from video, and manages automated fines.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
