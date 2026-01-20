@@ -1,13 +1,26 @@
 
 import React, { useState } from 'react';
-import { MOCK_DATABASE } from '../constants';
+import { MOCK_DATABASE, deleteVehicle } from '../constants';
 import { VehicleRecord } from '../types';
 
 const DatabaseTable: React.FC = () => {
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleRecord | null>(null);
   const [search, setSearch] = useState('');
+  const [refresh, setRefresh] = useState(0); // Trigger re-render after deletion
 
-  const filtered = MOCK_DATABASE.filter(v => v.plateNumber.toLowerCase().includes(search.toLowerCase()) || v.ownerName.toLowerCase().includes(search.toLowerCase()));
+  const handleDelete = (e: React.MouseEvent, plate: string) => {
+    e.stopPropagation();
+    if (window.confirm(`Are you sure you want to delete records for vehicle ${plate}?`)) {
+      deleteVehicle(plate);
+      setSelectedVehicle(null);
+      setRefresh(prev => prev + 1);
+    }
+  };
+
+  const filtered = MOCK_DATABASE.filter(v => 
+    v.plateNumber.toLowerCase().includes(search.toLowerCase()) || 
+    v.ownerName.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
     <div className="space-y-6">
@@ -37,12 +50,12 @@ const DatabaseTable: React.FC = () => {
                 <th className="px-8 py-4">Owner Profile</th>
                 <th className="px-8 py-4">Status</th>
                 <th className="px-8 py-4">Total Fines</th>
-                <th className="px-8 py-4 text-right">Records</th>
+                <th className="px-8 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.map((v, idx) => (
-                <tr key={idx} className="hover:bg-yellow-50/30 transition-all cursor-pointer group" onClick={() => setSelectedVehicle(v)}>
+                <tr key={`${v.plateNumber}-${refresh}`} className="hover:bg-yellow-50/30 transition-all cursor-pointer group" onClick={() => setSelectedVehicle(v)}>
                   <td className="px-8 py-5">
                     <div className="flex items-center gap-4">
                       <div className="bg-slate-900 px-3 py-1.5 rounded-lg text-white font-mono font-bold text-sm border-2 border-slate-700">
@@ -63,12 +76,17 @@ const DatabaseTable: React.FC = () => {
                     )}
                   </td>
                   <td className="px-8 py-5 font-bold text-slate-600">
-                    ${v.history.reduce((acc, f) => acc + f.amount, 0)}
+                    ₹{v.history.reduce((acc, f) => acc + f.amount, 0)}
                   </td>
                   <td className="px-8 py-5 text-right">
-                    <button className="text-slate-400 group-hover:text-yellow-600 transition-colors">
-                      <i className="fas fa-chevron-right"></i>
-                    </button>
+                    <div className="flex justify-end gap-2">
+                      <button onClick={(e) => handleDelete(e, v.plateNumber)} className="p-2 text-slate-300 hover:text-rose-500 transition-colors" title="Delete Records">
+                        <i className="fas fa-trash-alt"></i>
+                      </button>
+                      <button className="p-2 text-slate-300 group-hover:text-yellow-600 transition-colors">
+                        <i className="fas fa-chevron-right"></i>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -107,7 +125,7 @@ const DatabaseTable: React.FC = () => {
                   <p className="text-emerald-600 text-sm">This vehicle has no pending or past citations on the Traffix network.</p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
                   {selectedVehicle.history.map((fine) => (
                     <div key={fine.id} className="flex items-center justify-between p-5 bg-slate-50 rounded-2xl border border-slate-100">
                       <div className="flex items-center gap-4">
@@ -120,7 +138,7 @@ const DatabaseTable: React.FC = () => {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-black text-slate-900">${fine.amount}</p>
+                        <p className="font-black text-slate-900">₹{fine.amount}</p>
                         <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${fine.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-yellow-100 text-yellow-700'}`}>
                           {fine.status}
                         </span>
@@ -130,13 +148,19 @@ const DatabaseTable: React.FC = () => {
                 </div>
               )}
               
-              <div className="mt-10 pt-8 border-t border-slate-100 flex justify-between">
-                 <button className="bg-slate-100 text-slate-600 px-6 py-3 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all">
-                   Contact Owner
+              <div className="mt-10 pt-8 border-t border-slate-100 flex flex-wrap justify-between gap-4">
+                 <button onClick={(e) => handleDelete(e, selectedVehicle.plateNumber)} className="bg-rose-50 text-rose-600 px-6 py-3 rounded-xl font-bold text-sm hover:bg-rose-100 transition-all flex items-center gap-2">
+                   <i className="fas fa-trash-alt"></i>
+                   Delete Record
                  </button>
-                 <button className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-yellow-400 hover:text-black transition-all">
-                   Generate Full PDF Report
-                 </button>
+                 <div className="flex gap-4">
+                   <button className="bg-slate-100 text-slate-600 px-6 py-3 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all">
+                     Contact
+                   </button>
+                   <button className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-yellow-400 hover:text-black transition-all">
+                     Report
+                   </button>
+                 </div>
               </div>
             </div>
           </div>
