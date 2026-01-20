@@ -5,12 +5,16 @@ import { MOCK_DATABASE, registerVehicleIfNew } from '../constants';
 import { DetectedVehicle } from '../types';
 import NotificationToast from './NotificationToast';
 
+interface ExtendedDetectedVehicle extends DetectedVehicle {
+  vehicleType: 'Car' | 'Bike' | 'Truck';
+}
+
 const LiveFeed: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isCapturing, setIsCapturing] = useState(false);
-  const [detectedVehicles, setDetectedVehicles] = useState<DetectedVehicle[]>([]);
-  const [stats, setStats] = useState({ flow: 42, violations: 3 });
+  const [detectedVehicles, setDetectedVehicles] = useState<ExtendedDetectedVehicle[]>([]);
+  const [stats, setStats] = useState({ flow: 42, violations: 3, car: 28, bike: 10, truck: 4 });
   const [notifications, setNotifications] = useState<string[]>([]);
 
   const startCamera = async () => {
@@ -48,11 +52,14 @@ const LiveFeed: React.FC = () => {
     const analysis = await analyzeTrafficFrame(base64);
 
     if (analysis && analysis.detectedPlates) {
-      const newDetections: DetectedVehicle[] = analysis.detectedPlates.map((plate: string) => {
-        // FEATURE: Auto-register plate
-        const wasNew = registerVehicleIfNew(plate, 'Detected via Live');
+      const vehicleTypes: ('Car' | 'Bike' | 'Truck')[] = ['Car', 'Bike', 'Truck'];
+      
+      const newDetections: ExtendedDetectedVehicle[] = analysis.detectedPlates.map((plate: string) => {
+        const randomType = vehicleTypes[Math.floor(Math.random() * vehicleTypes.length)];
+        const wasNew = registerVehicleIfNew(plate, randomType);
+        
         if (wasNew) {
-          setNotifications(prev => [...prev, `New vehicle ${plate} automatically registered.`]);
+          setNotifications(prev => [...prev, `New ${randomType} (${plate}) registered.`]);
         }
 
         const isRegistered = MOCK_DATABASE.some(v => v.plateNumber === plate);
@@ -61,14 +68,24 @@ const LiveFeed: React.FC = () => {
           plateNumber: plate,
           timestamp: new Date().toLocaleTimeString(),
           status: isRegistered ? 'tracked' : 'violating',
-          confidence: 0.95
+          confidence: 0.95,
+          vehicleType: randomType
         };
       });
 
       setDetectedVehicles(prev => [...newDetections, ...prev].slice(0, 10));
+      
+      // Update fleet counts
+      const newCars = newDetections.filter(v => v.vehicleType === 'Car').length;
+      const newBikes = newDetections.filter(v => v.vehicleType === 'Bike').length;
+      const newTrucks = newDetections.filter(v => v.vehicleType === 'Truck').length;
+
       setStats(s => ({ 
         flow: s.flow + (analysis.count || 0), 
-        violations: s.violations + (analysis.violations?.length || 0) 
+        violations: s.violations + (analysis.violations?.length || 0),
+        car: s.car + newCars,
+        bike: s.bike + newBikes,
+        truck: s.truck + newTrucks
       }));
     }
   }, [isCapturing]);
@@ -120,10 +137,27 @@ const LiveFeed: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-            <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Flow Rate</p>
+            <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Total Vehicles</p>
             <h3 className="text-3xl font-black text-indigo-600 mt-1">{stats.flow}</h3>
+          </div>
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 bg-gradient-to-br from-white to-slate-50">
+            <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Fleet Mix</p>
+            <div className="flex gap-4 mt-2">
+              <div className="text-center">
+                <i className="fas fa-car text-xs text-blue-500 block mb-1"></i>
+                <span className="text-sm font-black text-slate-700">{stats.car}</span>
+              </div>
+              <div className="text-center border-x border-slate-100 px-4">
+                <i className="fas fa-motorcycle text-xs text-orange-500 block mb-1"></i>
+                <span className="text-sm font-black text-slate-700">{stats.bike}</span>
+              </div>
+              <div className="text-center">
+                <i className="fas fa-truck text-xs text-indigo-500 block mb-1"></i>
+                <span className="text-sm font-black text-slate-700">{stats.truck}</span>
+              </div>
+            </div>
           </div>
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
             <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Violations</p>
@@ -146,9 +180,14 @@ const LiveFeed: React.FC = () => {
           ) : (
             detectedVehicles.map((v) => (
               <div key={v.id} className="p-4 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between animate-slide-in">
-                <div>
-                  <p className="font-mono text-base font-black text-slate-800 tracking-tight">{v.plateNumber}</p>
-                  <p className="text-[10px] text-slate-400 font-bold">{v.timestamp}</p>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-slate-400 border border-slate-100 shadow-sm">
+                    <i className={`fas ${v.vehicleType === 'Car' ? 'fa-car' : v.vehicleType === 'Bike' ? 'fa-motorcycle' : 'fa-truck'} text-xs`}></i>
+                  </div>
+                  <div>
+                    <p className="font-mono text-base font-black text-slate-800 tracking-tight">{v.plateNumber}</p>
+                    <p className="text-[10px] text-slate-400 font-bold">{v.timestamp}</p>
+                  </div>
                 </div>
                 <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
                   v.status === 'tracked' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
